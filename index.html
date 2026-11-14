@@ -1,0 +1,141 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fab PLO Replayer</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101719;color:#f1f5f2;font-family:Arial,sans-serif}
+header{padding:20px;text-align:center;font-size:24px;font-weight:bold;color:#e8d99a}
+.layout{display:grid;grid-template-columns:230px minmax(0,1fr) 230px;gap:15px;padding:18px}
+.panel{background:#1c282a;border:1px solid #3b5050;border-radius:12px;padding:14px}
+.panel h3{color:#d9c88b;margin-top:0}
+#history{font-size:13px;line-height:1.8;max-height:450px;overflow:auto}
+.active{color:#ffe38b;font-weight:bold}
+.center{min-width:0}
+.table{position:relative;margin:75px auto 95px;width:100%;max-width:950px;height:370px;border-radius:50%;background:radial-gradient(ellipse,#267d50,#125535 75%);border:9px solid #3aaf73;box-shadow:0 0 20px #258c5a, inset 0 0 35px #092d1b}
+.player{position:absolute;text-align:center;background:#172325;border:1px solid #678a79;border-radius:12px;padding:9px;min-width:145px;transform:translate(-50%,-50%);font-size:13px}
+.player.top{top:-13%;left:50%}
+.player.left{top:47%;left:8%}
+.player.hero{top:110%;left:50%;border-color:#dfc77b}
+.name{font-weight:bold;color:#fff}
+.stack{color:#b6dfc7;margin:5px}
+.cards{display:flex;justify-content:center;gap:3px;margin-top:5px}
+.card{width:29px;height:41px;background:#fff;border-radius:4px;color:#111;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:15px}
+.red{color:#c32b37}
+.back{background:#31568b;color:#dce7ff}
+.board{position:absolute;left:50%;top:49%;transform:translate(-50%,-50%);display:flex;gap:6px}
+.board .card{width:42px;height:58px;font-size:21px}
+.pot{position:absolute;left:50%;top:24%;transform:translateX(-50%);font-weight:bold;color:#ffe5a0}
+.action{position:absolute;left:50%;top:77%;transform:translateX(-50%);background:#122c23;padding:8px 14px;border-radius:8px;white-space:nowrap;font-size:13px}
+.controls{text-align:center;margin:15px}
+button{background:#275e48;color:white;border:1px solid #77ae8d;border-radius:8px;padding:10px 15px;margin:4px;cursor:pointer;font-weight:bold}
+button:hover{background:#36845d}
+button:disabled{opacity:.4;cursor:default}
+#counter{color:#d5d5d5;margin:10px}
+.info{line-height:1.9;font-size:14px}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.table{height:280px;margin:70px auto 100px}.player{min-width:115px}.card{width:24px;height:34px;font-size:12px}.board .card{width:30px;height:43px;font-size:15px}}
+</style>
+</head>
+<body>
+<header>♠ FAB PLO REPLAYER ♠</header>
+<div class="layout">
+<aside class="panel">
+<h3>Historique des actions</h3>
+<div id="history"></div>
+</aside>
+<main class="center">
+<div class="table">
+<div class="player top" id="p0"></div>
+<div class="player left" id="p1"></div>
+<div class="player hero" id="p2"></div>
+<div class="pot" id="pot"></div>
+<div class="board" id="board"></div>
+<div class="action" id="action"></div>
+</div>
+<div class="controls">
+<button onclick="go(0)">Début</button>
+<button onclick="go(step-1)">◀</button>
+<button onclick="toggle()" id="play">▶ Lecture</button>
+<button onclick="go(step+1)">▶</button>
+<button onclick="go(events.length-1)">Fin</button>
+<div id="counter"></div>
+<button onclick="street('Préflop')">Préflop</button>
+<button onclick="street('Flop')">Flop</button>
+<button onclick="street('Turn')">Turn</button>
+<button onclick="street('River')">River</button>
+</div>
+</main>
+<aside class="panel">
+<h3>Informations</h3>
+<div class="info" id="info"></div>
+<p style="font-size:12px;color:#aabbb3">Démonstration : Main 7 Betclic. Les montants du pot sont reconstruits à partir des actions connues, hors rake.</p>
+</aside>
+</div>
+<script>
+const players=[
+{name:"KEEKHIAT",pos:"D",stack:444,cards:null},
+{name:"littérature",pos:"SB",stack:301.3,cards:null},
+{name:"👑 Habanero",pos:"BB",stack:101,cards:["K♥","K♦","4♥","6♠"]}
+];
+const events=[
+["Préflop","Début de la main",0,[],[444,300.8,100],[]],
+["Préflop","KEEKHIAT relance à 3.5 BB",4.5,[],[440.5,300.8,100],[3.5,.5,1]],
+["Préflop","littérature suit 3 BB",7.5,[],[440.5,297.8,100],[3.5,3.5,1]],
+["Préflop","Habanero suit 2.5 BB",10,[],[440.5,297.8,97.5],[3.5,3.5,3.5]],
+["Flop","Flop distribué",10,["2♦","10♥","8♣"],[440.5,297.8,97.5],[]],
+["Flop","littérature check",10,["2♦","10♥","8♣"],[440.5,297.8,97.5],[]],
+["Flop","Habanero mise 3.5 BB",13.5,["2♦","10♥","8♣"],[440.5,297.8,94],[0,0,3.5]],
+["Flop","KEEKHIAT se couche",13.5,["2♦","10♥","8♣"],[440.5,297.8,94],[0,0,3.5]],
+["Flop","littérature suit 3.5 BB",17,["2♦","10♥","8♣"],[440.5,294.3,94],[0,3.5,3.5]],
+["Turn","Turn distribué",17,["2♦","10♥","8♣","2♣"],[440.5,294.3,94],[]],
+["Turn","littérature check",17,["2♦","10♥","8♣","2♣"],[440.5,294.3,94],[]],
+["Turn","Habanero check",17,["2♦","10♥","8♣","2♣"],[440.5,294.3,94],[]],
+["River","River distribué",17,["2♦","10♥","8♣","2♣","3♥"],[440.5,294.3,94],[]],
+["River","littérature check",17,["2♦","10♥","8♣","2♣","3♥"],[440.5,294.3,94],[]],
+["River","Habanero check",17,["2♦","10♥","8♣","2♣","3♥"],[440.5,294.3,94],[]],
+["Showdown","Habanero gagne : rois et deux",17,["2♦","10♥","8♣","2♣","3♥"],[440.5,294.3,94],[]]
+];
+let step=0,timer=null;
+function cards(a){
+return (a||["?","?","?","?"]).map(c=>{
+let red=c.includes("♥")||c.includes("♦");
+return '<span class="card '+(c==="?"?"back":red?"red":"")+'">'+c+'</span>';
+}).join("");
+}
+function render(){
+const e=events[step];
+players.forEach((p,i)=>{
+document.getElementById("p"+i).innerHTML=
+'<div class="name">'+p.name+' ('+p.pos+')</div>'+
+'<div class="stack">'+e[4][i].toFixed(1)+' BB</div>'+
+'<div class="cards">'+cards(p.cards)+'</div>'+
+(e[5][i]>0?'<div>Mise : '+e[5][i]+' BB</div>':'');
+});
+document.getElementById("pot").textContent="Pot : "+e[2].toFixed(1)+" BB";
+document.getElementById("board").innerHTML=e[3].map(c=>cards([c])).join("");
+document.getElementById("action").textContent=e[1];
+document.getElementById("counter").textContent=(step+1)+" / "+events.length;
+document.getElementById("info").innerHTML=
+"<b>Main :</b> 7<br><b>Variante :</b> PLO 4 cartes<br><b>Street :</b> "+e[0]+
+"<br><b>Joueurs :</b> 3<br><b>Pot calculé :</b> "+e[2].toFixed(1)+
+" BB<br><b>Gagnant :</b> Habanero";
+document.getElementById("history").innerHTML=events.slice(0,step+1).map((a,i)=>
+'<div class="'+(i===step?"active":"")+'">'+(i+1)+'. '+a[1]+'</div>').join("");
+}
+function go(n){step=Math.max(0,Math.min(events.length-1,n));render()}
+function street(s){let n=events.findIndex(e=>e[0]===s);if(n>=0)go(n)}
+function toggle(){
+if(timer){clearInterval(timer);timer=null;document.getElementById("play").textContent="▶ Lecture";return}
+document.getElementById("play").textContent="⏸ Pause";
+timer=setInterval(()=>{
+if(step===events.length-1){toggle();return}
+go(step+1);
+},1300);
+}
+render();
+</script>
+</body>
+</html>
